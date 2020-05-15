@@ -1,102 +1,94 @@
-`timescale 1 ms/ 1 ms
+`timescale 1 ps / 1 ps
+`define TUPS 1000000000 // timescale units per second. if 1 ns then TUPS = 10^9
+`define SYS_CLK 25  // in MHz
+
+
 
 module tb();
 
-reg n_rst;
-reg sclk;
-reg miso;
 reg [23:0] in_data;
 reg in_ena;
+reg miso;
+reg n_rst;
+reg treg_sdio;
+reg sys_clk;
 
-wire mosi;
-wire n_cs;
 wire io_update;
 wire busy;
-wire [23:0] miso_reg;
+wire [23:0]  miso_reg;
+wire mosi;
+wire n_cs;
+wire sclk;
+wire sdio;
 wire miso_reg_ena;
-
 wire [7:0] my_bit_cnt;
+wire my_load_cond;
+wire my_eoframe_cond;
 wire [2:0] my_pause_cnt;
-wire       my_load_cond;
-wire       my_eof_cond;
-wire       my_high_z;
+
+assign sdio = treg_sdio;
 
 
 
 spi_master_reg i1 (
-	.n_rst (n_rst),
-	
-	.sclk (sclk),
-	.miso (miso),
-	.mosi (mosi),
-	.n_cs (n_cs),
-	.sdio (sdio),
-	.io_update (io_update),
-	
-	.in_data (in_data),
+  .io_update (io_update),
+  .in_data (in_data),
   .in_ena (in_ena),
   .busy (busy),
-  
+  .miso (miso),
   .miso_reg (miso_reg),
+  .mosi (mosi),
+  .n_cs (n_cs),
+  .n_rst (n_rst),
+  .sclk (sclk),
+  .sdio (sdio),
   .miso_reg_ena (miso_reg_ena),
-  
+  .sys_clk (sys_clk),
   .my_bit_cnt (my_bit_cnt),
-  .my_pause_cnt (my_pause_cnt),
   .my_load_cond (my_load_cond),
-  .my_eof_cond (my_eof_cond),
-  .my_high_z (my_high_z)
+  .my_eoframe_cond (my_eoframe_cond),
+  .my_pause_cnt (my_pause_cnt)
 );
 
 
-integer counter;
 
-always #10 sclk = ~sclk;
+// calculate timing constants
+integer CLK_T = `TUPS / (`SYS_CLK * 1000000);
+integer CLK_HALF = `TUPS / (`SYS_CLK * 1000000) / 2;
 
-always@(posedge sclk)
-  if(!busy & in_ena)
-    begin
-    #5 in_data = $random;
-    counter = counter + 1;
-    end
-
-  
-always@(negedge sclk) // if CPHA: 0 = posedge, 1 = negedge
-  if(!n_cs)
-    #5 miso = $random;
-    
-always@(posedge sclk)
-  if(counter == 15)
-      #5 in_ena = 0;
+// generating clocks
+always #CLK_HALF sys_clk = !sys_clk;
 
 initial
   begin
-  
-  n_rst = 0;
-  sclk = 0;
-  in_data = $random;
+  in_data = 0;
   in_ena = 0;
-  miso = $random;
-  counter = 0;
-
-
-  #15
-  #100
+  miso = 0;
+  n_rst = 0;
+  treg_sdio = 1'bz;
+  sys_clk = 1;
+  
+  #(CLK_T/4)  // initial offset to 1/4 of period for easier clocking
+ 
+  #(10*CLK_T)
   
   n_rst = 1;
 
-  #100
+  #(1000*CLK_T)
   
   in_ena = 1;
+  in_data = {1'b1,23'b0};
   
+  #(1000*CLK_T)
   
-  #10000
+  in_ena = 0;
   
+  #(1000*CLK_T)
   
   $display("Testbench end");
   $stop();
-
   end
 
 
-endmodule
 
+endmodule
